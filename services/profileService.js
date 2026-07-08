@@ -1,7 +1,45 @@
 const fs = require('fs');
+const https = require('https');
 const Profile = require('../models/Profile');
 const AppError = require('../utils/appError');
 const { cloudinary, isCloudinaryConfigured } = require('../config/cloudinary');
+
+const getAddressFromCoords = (lat, lon) => {
+  return new Promise((resolve) => {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+    const options = {
+      headers: {
+        'User-Agent': 'TinderCloneApp/1.0'
+      }
+    };
+    
+    https.get(url, options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const data = JSON.parse(body);
+          if (data && data.address) {
+            const address = data.address;
+            const city = address.city || address.town || address.village || address.suburb || address.county || '';
+            const state = address.state || '';
+            
+            if (city && state) resolve(`${city}, ${state}`);
+            if (city) resolve(city);
+            if (state) resolve(state);
+            resolve(data.display_name || '');
+          } else {
+            resolve('');
+          }
+        } catch (e) {
+          resolve('');
+        }
+      });
+    }).on('error', () => {
+      resolve('');
+    });
+  });
+};
 
 exports.getProfileByUserId = async (userId) => {
   const profile = await Profile.findOne({ user: userId }).populate('user', 'email role isVerified');
@@ -16,11 +54,14 @@ exports.createOrUpdateProfile = async (userId, profileData) => {
 
   // Handle location coordinates structure [longitude, latitude]
   let locationObj;
+  let locName = '';
   if (profileData.longitude !== undefined && profileData.latitude !== undefined) {
     locationObj = {
       type: 'Point',
       coordinates: [parseFloat(profileData.longitude), parseFloat(profileData.latitude)],
     };
+    // Resolve coordinates to location name
+    locName = await getAddressFromCoords(parseFloat(profileData.latitude), parseFloat(profileData.longitude));
   }
 
   const updateFields = {
@@ -45,6 +86,7 @@ exports.createOrUpdateProfile = async (userId, profileData) => {
 
   if (locationObj) {
     updateFields.location = locationObj;
+    updateFields.locationName = locName;
   }
 
   // Remove undefined fields
@@ -70,6 +112,7 @@ exports.createOrUpdateProfile = async (userId, profileData) => {
       user: userId,
       ...updateFields,
       location: locationObj,
+      locationName: locName,
     });
     await profile.save();
     profile = await profile.populate('user', 'email role isVerified');

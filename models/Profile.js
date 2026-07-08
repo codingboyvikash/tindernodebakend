@@ -81,6 +81,10 @@ const profileSchema = new mongoose.Schema(
         required: [true, 'Please provide GPS coordinates'],
       },
     },
+    locationName: {
+      type: String,
+      default: '',
+    },
     distancePreference: {
       type: Number, // in kilometers
       default: 50,
