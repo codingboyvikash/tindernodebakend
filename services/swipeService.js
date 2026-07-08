@@ -18,7 +18,9 @@ exports.getDiscoveryFeed = async (userId, filters = {}) => {
     interestedIn,
   } = userProfile;
 
-  if (!location || !location.coordinates) {
+  const ignorePreferences = filters.ignorePreferences === 'true';
+
+  if (!ignorePreferences && (!location || !location.coordinates)) {
     throw new AppError('GPS coordinates are required to fetch discovery feed.', 400);
   }
 
@@ -28,37 +30,49 @@ exports.getDiscoveryFeed = async (userId, filters = {}) => {
   const finalMaxAge = parseInt(filters.maxAge) || maxAgePreference;
 
   // 1. Find all users current user already swiped on
-  const swipedLikes = await Like.find({ liker: userId }).select('liked');
-  const swipedUserIds = swipedLikes.map((l) => l.liked);
+  const swipedUserIds = [];
+  if (!ignorePreferences) {
+    const swipedLikes = await Like.find({ liker: userId }).select('liked');
+    swipedUserIds.push(...swipedLikes.map((l) => l.liked));
+    // Add self to excluded list
+    swipedUserIds.push(userId);
+  }
 
-  // Add self to excluded list
-  swipedUserIds.push(userId);
-
-  // 2. Build Geo-spatial distance query
-  const radiusInRadians = finalDistance / 6378.1;
-  const coordinates = location.coordinates; // [long, lat]
-
-  // 3. Build Age Date limits
-  const today = new Date();
-  const maxBirthDate = new Date(today.getFullYear() - finalMinAge, today.getMonth(), today.getDate());
-  const minBirthDate = new Date(today.getFullYear() - finalMaxAge - 1, today.getMonth(), today.getDate());
-
-  // 4. Build Gender match query
+  // 4. Build Match query
   const matchQuery = {
     user: { $ne: null, $nin: swipedUserIds },
-    birthDate: { $gte: minBirthDate, $lte: maxBirthDate },
-    location: {
+  };
+
+  if (!ignorePreferences) {
+    // 2. Build Geo-spatial distance query
+    const radiusInRadians = finalDistance / 6378.1;
+    const coordinates = location.coordinates; // [long, lat]
+
+    // 3. Build Age Date limits
+    const today = new Date();
+    const maxBirthDate = new Date(today.getFullYear() - finalMinAge, today.getMonth(), today.getDate());
+    const minBirthDate = new Date(today.getFullYear() - finalMaxAge - 1, today.getMonth(), today.getDate());
+
+    matchQuery.birthDate = { $gte: minBirthDate, $lte: maxBirthDate };
+    matchQuery.location = {
       $geoWithin: {
         $centerSphere: [coordinates, radiusInRadians],
       },
-    },
-  };
+    };
 
-  // Filter based on gender preference or query filters override
-  if (filters.gender) {
-    matchQuery.gender = filters.gender;
-  } else if (interestedIn === 'male' || interestedIn === 'female') {
-    matchQuery.gender = interestedIn;
+    // Filter based on gender preference or query filters override
+    if (filters.gender) {
+      matchQuery.gender = filters.gender;
+    } else if (interestedIn === 'male' || interestedIn === 'female') {
+      matchQuery.gender = interestedIn;
+    }
+
+    // Reverse query: show users matching our gender
+    if (gender === 'male') {
+      matchQuery.interestedIn = { $in: ['male', 'everyone'] };
+    } else if (gender === 'female') {
+      matchQuery.interestedIn = { $in: ['female', 'everyone'] };
+    }
   }
 
   // Appends query search filters
@@ -78,24 +92,38 @@ exports.getDiscoveryFeed = async (userId, filters = {}) => {
     if (filters.maxHeight) matchQuery.height.$lte = parseInt(filters.maxHeight);
   }
 
-  // Reverse query: show users matching our gender
-  if (gender === 'male') {
-    matchQuery.interestedIn = { $in: ['male', 'everyone'] };
-  } else if (gender === 'female') {
-    matchQuery.interestedIn = { $in: ['female', 'everyone'] };
-  }
-
   let discoveryProfiles = await Profile.find(matchQuery)
     .populate('user', 'email role isVerified')
     .limit(30);
 
-  // If feed is empty because the user swiped on everyone, reset swipes to enable continuous looping
+  // If feed is empty, try to relax preferences in development mode so they can see any other registered users
+  if (discoveryProfiles.length === 0) {
+    if (process.env.NODE_ENV === 'development') {
+      const relaxedQuery = {
+        user: { $ne: null, $nin: swipedUserIds }
+      };
+      discoveryProfiles = await Profile.find(relaxedQuery)
+        .populate('user', 'email role isVerified')
+        .limit(30);
+    }
+  }
+
+  // If feed is still empty because the user swiped on everyone, reset swipes to enable continuous looping
   if (discoveryProfiles.length === 0 && swipedUserIds.length > 1) {
     await Like.deleteMany({ liker: userId });
-    matchQuery.user = { $ne: null, $nin: [userId] };
-    discoveryProfiles = await Profile.find(matchQuery)
-      .populate('user', 'email role isVerified')
-      .limit(30);
+    const resetQuery = {
+      user: { $ne: null, $nin: [userId] }
+    };
+    if (process.env.NODE_ENV === 'development') {
+      discoveryProfiles = await Profile.find(resetQuery)
+        .populate('user', 'email role isVerified')
+        .limit(30);
+    } else {
+      matchQuery.user = { $ne: null, $nin: [userId] };
+      discoveryProfiles = await Profile.find(matchQuery)
+        .populate('user', 'email role isVerified')
+        .limit(30);
+    }
   }
 
   return discoveryProfiles;
