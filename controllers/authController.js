@@ -4,6 +4,14 @@ exports.register = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const result = await authService.register(email, password);
+
+    console.log('\n=========================================');
+    console.log('👤 NEW USER REGISTERING:');
+    console.log(`📧 Email: ${email}`);
+    console.log(`🆔 User ID: ${result.userId}`);
+    console.log(`🔑 Verification Status: ${result.isVerified}`);
+    console.log('=========================================\n');
+
     res.status(201).json({
       status: 'success',
       data: result,
@@ -17,6 +25,18 @@ exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const result = await authService.login(email, password);
+
+    console.log('\n=========================================');
+    console.log('🔑 USER LOGGED IN:');
+    console.log(`📧 Email: ${result.user?.email || email}`);
+    console.log(`🆔 User ID: ${result.user?.id || result.userId}`);
+    if (result.accessToken) {
+      console.log(`🔑 Access Token: ${result.accessToken}`);
+      console.log(`🔄 Refresh Token: ${result.refreshToken}`);
+    } else {
+      console.log(`⚠️ Status: ${result.message}`);
+    }
+    console.log('=========================================\n');
 
     // If verification is complete, we set a cookie for convenience, though mobile clients will use headers
     if (result.refreshToken) {
@@ -40,6 +60,14 @@ exports.verifyOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
     const result = await authService.verifyOTP(email, otp);
+
+    console.log('\n=========================================');
+    console.log('✅ USER OTP VERIFIED (Registration Complete):');
+    console.log(`📧 Email: ${result.user.email}`);
+    console.log(`🆔 User ID: ${result.user.id}`);
+    console.log(`🔑 Access Token: ${result.accessToken}`);
+    console.log(`🔄 Refresh Token: ${result.refreshToken}`);
+    console.log('=========================================\n');
 
     res.cookie('jwt', result.refreshToken, {
       httpOnly: true,
