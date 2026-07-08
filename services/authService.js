@@ -16,7 +16,8 @@ const sendOTPEmail = async (email, otp) => {
     try {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
+        port: parseInt(process.env.SMTP_PORT) || 587,
+        secure: parseInt(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
@@ -40,6 +41,19 @@ const sendOTPEmail = async (email, otp) => {
 exports.register = async (email, password) => {
   const existingUser = await User.findOne({ email });
   if (existingUser) {
+    if (existingUser.isVerified === 'pending_otp') {
+      // User started registration but didn't verify OTP. Let them get a new one.
+      existingUser.password = password; // updates password if changed
+      const otp = existingUser.generateOTP();
+      await existingUser.save();
+      await sendOTPEmail(email, otp);
+      return {
+        userId: existingUser._id,
+        email: existingUser.email,
+        isVerified: existingUser.isVerified,
+        message: 'Registration pending. New OTP sent to email.',
+      };
+    }
     throw new AppError('Email address already registered', 400);
   }
 
