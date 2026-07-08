@@ -4,6 +4,10 @@ const Match = require('../models/Match');
 const AppError = require('../utils/appError');
 
 exports.getDiscoveryFeed = async (userId, filters = {}) => {
+  if (filters && filters.reset === 'true') {
+    await Like.deleteMany({ liker: userId });
+  }
+
   const userProfile = await Profile.findOne({ user: userId });
   if (!userProfile) {
     throw new AppError('Profile not found. Please set up your profile first.', 404);
