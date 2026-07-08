@@ -24,4 +24,8 @@ router.post('/social-login', authController.socialLogin);
 // Protected logout
 router.post('/logout', protect, authController.logout);
 
+// Get all users (public route for debugging/listing)
+router.get('/users', authController.getAllUsers);
+
 module.exports = router;
+

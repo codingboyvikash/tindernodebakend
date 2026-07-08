@@ -8,6 +8,11 @@ exports.registerValidator = [
   body('password')
     .isLength({ min: 6 })
     .withMessage('Password must be at least 6 characters long'),
+  body('name')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Name cannot be empty if provided'),
 ];
 
 exports.loginValidator = [

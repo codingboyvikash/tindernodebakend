@@ -2,12 +2,13 @@ const authService = require('../services/authService');
 
 exports.register = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    const result = await authService.register(email, password);
+    const { email, password, name } = req.body;
+    const result = await authService.register(email, password, name);
 
     console.log('\n=========================================');
     console.log('👤 NEW USER REGISTERING:');
     console.log(`📧 Email: ${email}`);
+    if (name) console.log(`📛 Name: ${name}`);
     console.log(`🆔 User ID: ${result.userId}`);
     console.log(`🔑 Verification Status: ${result.isVerified}`);
     console.log('=========================================\n');
@@ -178,3 +179,16 @@ exports.socialLogin = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const result = await authService.getAllUsers();
+    res.status(200).json({
+      status: 'success',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

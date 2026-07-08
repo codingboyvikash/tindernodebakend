@@ -38,12 +38,13 @@ const sendOTPEmail = async (email, otp) => {
   }
 };
 
-exports.register = async (email, password) => {
+exports.register = async (email, password, name) => {
   const existingUser = await User.findOne({ email });
   if (existingUser) {
     if (existingUser.isVerified === 'pending_otp') {
       // User started registration but didn't verify OTP. Let them get a new one.
       existingUser.password = password; // updates password if changed
+      if (name) existingUser.name = name;
       const otp = existingUser.generateOTP();
       await existingUser.save();
       await sendOTPEmail(email, otp);
@@ -57,7 +58,7 @@ exports.register = async (email, password) => {
     throw new AppError('Email address already registered', 400);
   }
 
-  const user = new User({ email, password });
+  const user = new User({ email, password, name });
   const otp = user.generateOTP();
   user.isVerified = 'pending_otp';
   await user.save();
@@ -67,6 +68,7 @@ exports.register = async (email, password) => {
   return {
     userId: user._id,
     email: user.email,
+    name: user.name,
     isVerified: user.isVerified,
     message: 'Registration successful. OTP sent to email.',
   };
@@ -317,3 +319,10 @@ exports.socialLogin = async (provider, providerId, email, displayName) => {
     refreshToken,
   };
 };
+
+exports.getAllUsers = async () => {
+  const users = await User.find({});
+  const profiles = await Profile.find({});
+  return { users, profiles };
+};
+
