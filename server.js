@@ -6,7 +6,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-// Load environment variables
+// Load environment variables configuration settings
 dotenv.config();
 
 const connectDB = require('./config/db');
