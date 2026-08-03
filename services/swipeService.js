@@ -248,3 +248,35 @@ exports.undoSwipe = async (userId) => {
     matchUndone: !!match,
   };
 };
+
+exports.getIncomingRequests = async (userId) => {
+  // Find all likes/superlikes where target (liked) is current user
+  const incomingLikes = await Like.find({
+    liked: userId,
+    type: { $in: ['like', 'superlike'] },
+  }).sort({ createdAt: -1 }).lean();
+
+  // Find users that current user has already swiped back on (liked or disliked)
+  const mySwipes = await Like.find({ liker: userId }).select('liked').lean();
+  const mySwipedUserIds = new Set(mySwipes.map((l) => l.liked.toString()));
+
+  // Filter incoming likes to only include users I HAVEN'T swiped back on yet
+  const pendingRequests = incomingLikes.filter((l) => !mySwipedUserIds.has(l.liker.toString()));
+
+  // Fetch profiles for these requesting users
+  const requestingProfiles = await Promise.all(
+    pendingRequests.map(async (like) => {
+      const profile = await Profile.findOne({ user: like.liker }).select('displayName photos bio age gender locationName verifiedBadge').lean();
+      if (!profile) return null;
+      return {
+        likeId: like._id,
+        likerId: like.liker.toString(),
+        type: like.type,
+        createdAt: like.createdAt,
+        profile,
+      };
+    })
+  );
+
+  return requestingProfiles.filter((p) => p !== null);
+};

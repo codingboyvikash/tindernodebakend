@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/discovery', swipeController.getDiscovery);
+router.get('/requests', swipeController.getIncomingRequests);
 router.post('/right', swipeController.swipeRight);
 router.post('/left', swipeController.swipeLeft);
 router.post('/super-like', swipeController.superLike);
