@@ -24,6 +24,9 @@ router.post('/social-login', authController.socialLogin);
 // Protected logout
 router.post('/logout', protect, authController.logout);
 
+// Register FCM Token
+router.post('/fcm-token', protect, authController.updateFCMToken);
+
 // Get all users (public route for debugging/listing)
 router.get('/users', authController.getAllUsers);
 

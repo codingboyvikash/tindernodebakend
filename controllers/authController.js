@@ -192,3 +192,23 @@ exports.getAllUsers = async (req, res, next) => {
   }
 };
 
+exports.updateFCMToken = async (req, res, next) => {
+  try {
+    const { fcmToken } = req.body;
+    if (!fcmToken) {
+      const AppError = require('../utils/appError');
+      return next(new AppError('Please provide fcmToken', 400));
+    }
+
+    req.user.fcmToken = fcmToken;
+    await req.user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'FCM Token updated successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

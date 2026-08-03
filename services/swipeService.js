@@ -2,6 +2,8 @@ const Profile = require('../models/Profile');
 const Like = require('../models/Like');
 const Match = require('../models/Match');
 const AppError = require('../utils/appError');
+const User = require('../models/User');
+const notificationService = require('./notificationService');
 
 exports.getDiscoveryFeed = async (userId, filters = {}) => {
   if (filters && filters.reset === 'true') {
@@ -155,6 +157,16 @@ exports.swipe = async (userId, targetId, swipeType) => {
     return { match: false, swipeRecord };
   }
 
+  // Fetch liker profile details to send in response & notifications
+  const likerProfile = await Profile.findOne({ user: userId });
+  const likerName = likerProfile ? likerProfile.displayName : 'Someone';
+  const likerPhoto = (likerProfile && likerProfile.photos.length > 0) ? likerProfile.photos[0] : '';
+  const likerDetails = {
+    id: userId,
+    displayName: likerName,
+    photo: likerPhoto,
+  };
+
   // 3. Check for reciprocal like/superlike
   const reciprocalSwipe = await Like.findOne({
     liker: targetId,
@@ -162,7 +174,27 @@ exports.swipe = async (userId, targetId, swipeType) => {
     type: { $in: ['like', 'superlike'] },
   });
 
-  if (reciprocalSwipe) {
+  const isMatch = !!reciprocalSwipe;
+
+  // Send push notification to target user
+  try {
+    const targetUser = await User.findById(targetId);
+    if (targetUser && targetUser.fcmToken) {
+      const title = isMatch ? "It's a Match!" : 'New Request';
+      const body = isMatch
+        ? `You matched with ${likerName}!`
+        : `${likerName} sent you a request!`;
+      const payload = {
+        type: isMatch ? 'match' : 'like',
+        likerId: userId.toString(),
+      };
+      await notificationService.sendPushNotification(targetUser.fcmToken, title, body, payload);
+    }
+  } catch (err) {
+    console.error('Failed to send swipe push notification:', err.message);
+  }
+
+  if (isMatch) {
     // Check if Match already exists
     let match = await Match.findOne({
       users: { $all: [userId, targetId] },
@@ -181,12 +213,14 @@ exports.swipe = async (userId, targetId, swipeType) => {
       match: true,
       matchDetails: match,
       matchedProfile,
+      likerDetails,
     };
   }
 
   return {
     match: false,
     swipeRecord,
+    likerDetails,
   };
 };
 

@@ -16,6 +16,7 @@ const swipeRoutes = require('./routes/swipeRoutes');
 const matchRoutes = require('./routes/matchRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const agoraRoutes = require('./routes/agoraRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
 const errorHandler = require('./middlewares/errorHandler');
 const AppError = require('./utils/appError');
@@ -57,6 +58,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/agora', agoraRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
