@@ -106,3 +106,16 @@ exports.undoSwipe = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.getIncomingRequests = async (req, res, next) => {
+  try {
+    const requests = await swipeService.getIncomingRequests(req.user._id);
+    res.status(200).json({
+      status: 'success',
+      count: requests.length,
+      data: requests,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
