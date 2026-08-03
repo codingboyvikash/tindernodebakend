@@ -12,7 +12,8 @@ exports.getMatchesAndChats = async (userId) => {
   
   // Make sure each match has a chatRoom, create if missing
   for (const match of matches) {
-    const otherUser = match.users.find((u) => u._id.toString() !== userId.toString());
+    if (!match.users || !Array.isArray(match.users)) continue;
+    const otherUser = match.users.find((u) => u && u._id && u._id.toString() !== userId.toString());
     if (!otherUser) continue;
 
     const otherProfile = await Profile.findOne({ user: otherUser._id }).select('displayName photos bio isOnline lastSeen');

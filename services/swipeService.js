@@ -132,7 +132,8 @@ exports.getDiscoveryFeed = async (userId, filters = {}) => {
     }
   }
 
-  return discoveryProfiles;
+  // Filter out any orphaned profiles where user reference is null
+  return discoveryProfiles.filter((p) => p && p.user != null);
 };
 
 exports.swipe = async (userId, targetId, swipeType) => {
