@@ -93,6 +93,9 @@ exports.getMessages = async (chatId, userId, page = 1, limit = 50) => {
   return messages;
 };
 
+const User = require('../models/User');
+const notificationService = require('./notificationService');
+
 exports.sendMessage = async (userId, chatId, content, attachments = [], replyTo = null) => {
   const room = await ChatRoom.findById(chatId);
   if (!room || !room.users.includes(userId)) {
@@ -114,6 +117,38 @@ exports.sendMessage = async (userId, chatId, content, attachments = [], replyTo 
   // Update room latestMessage reference
   room.latestMessage = message._id;
   await room.save();
+
+  // Trigger FCM Push Notification to recipient
+  try {
+    const recipientId = room.users.find((id) => id && id.toString() !== userId.toString());
+    if (recipientId) {
+      const recipientUser = await User.findById(recipientId).select('fcmToken').lean();
+      const senderProfile = await Profile.findOne({ user: userId }).select('displayName photos').lean();
+
+      if (recipientUser && recipientUser.fcmToken) {
+        const senderName = senderProfile?.displayName || 'Match';
+        const senderPhoto = senderProfile?.photos?.[0] || '';
+        const bodyText = content && content.trim().length > 0
+          ? content
+          : (attachments && attachments.length > 0 ? '📷 Sent an attachment' : 'New message received');
+
+        await notificationService.sendPushNotification(
+          recipientUser.fcmToken,
+          `💬 ${senderName}`,
+          bodyText,
+          {
+            type: 'chat_message',
+            chatRoomId: chatId.toString(),
+            senderId: userId.toString(),
+            senderName: senderName,
+            senderPhoto: senderPhoto,
+          }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Error sending chat push notification:', err.message);
+  }
 
   return await message.populate([
     { path: 'replyTo', select: 'content sender' },
